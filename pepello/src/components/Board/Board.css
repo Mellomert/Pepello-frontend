@@ -1,0 +1,108 @@
+/* src/components/Board/Board.css */
+
+/* Ana Pano Konteyneri */
+.board-container {
+  display: flex;
+  align-items: flex-start; /* Listeleri yukarı yasla */
+  padding: 12px;
+  height: 100%;
+  width: 100%;
+  overflow-x: auto; /* Yatay kaydırma */
+  /* Arka plan rengi artık App.jsx tarafından yönetiliyor */
+}
+
+/* --- LİSTE EKLEME BÖLÜMÜ --- */
+.add-list-wrapper {
+  min-width: 272px; /* Liste genişliği ile aynı */
+  margin-right: 12px;
+  flex-shrink: 0; /* Daralmasın */
+}
+
+/* "Başka liste ekle" Butonu */
+.add-list-btn {
+  width: 100%;
+  background-color: rgba(255, 255, 255, 0.24);
+  border-radius: 12px;
+  padding: 12px;
+  color: white;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  font-size: 14px;
+  transition: background 0.2s;
+  font-weight: 500;
+}
+
+.add-list-btn:hover {
+  background-color: rgba(255, 255, 255, 0.32);
+}
+
+/* Liste Ekleme Formu (Açıldığında) */
+.add-list-form {
+  background-color: #101204;
+  border-radius: 12px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border: 1px solid #384148;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+}
+
+/* Liste Başlığı Input'u */
+.add-list-form .list-input {
+  background-color: #22272b;
+  border: 2px solid #384148;
+  border-radius: 8px;
+  padding: 8px 12px;
+  color: #fff;
+  font-size: 14px;
+  outline: none;
+}
+
+.add-list-form .list-input:focus {
+  border-color: #85b8ff;
+  background-color: #2c333a;
+}
+
+/* Buton Grubu */
+.add-list-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Ekle Butonu */
+.btn-add-list {
+  background-color: #579dff;
+  color: #1d2125;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.btn-add-list:hover {
+  background-color: #85b8ff;
+}
+
+/* Kapat (X) Butonu */
+.btn-close-list {
+  background: transparent;
+  border: none;
+  color: #9fadbc;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border-radius: 4px;
+}
+
+.btn-close-list:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}

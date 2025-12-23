@@ -1,0 +1,196 @@
+/* --- SIDEBAR ANA KUTUSU --- */
+.sidebar-area {
+  width: 260px;
+  background-color: rgba(0,0,0,0.3); /* Yarı saydam arka plan */
+  backdrop-filter: blur(10px);
+  border-right: 1px solid rgba(255,255,255,0.1);
+  display: flex;
+  flex-direction: column;
+  transition: width 0.3s ease;
+  flex-shrink: 0;
+  
+  /* --- KRİTİK AYARLAR (Butonun taşması için) --- */
+  position: relative; 
+  overflow: visible !important; 
+  z-index: 100;
+}
+
+/* Sidebar Kapalı Modu */
+.sidebar-area.closed {
+  width: 25px;
+  background-color: #1d2125;
+  cursor: pointer;
+}
+
+/* --- AÇMA / KAPAMA BUTONU --- */
+.sidebar-toggle {
+  position: absolute;
+  top: 17px;       
+  right: -12px;    /* Yarısı dışarıda, yarısı içeride */
+  
+  width: 24px;
+  height: 24px;
+  background-color: #579dff;
+  border: 1px solid #282e33;
+  border-radius: 50%;
+  color: #172b4d;
+  
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  
+  z-index: 101; 
+  box-shadow: 0 2px 4px rgba(0,0,0,0.4);
+  
+  transition: transform 0.2s, background-color 0.2s;
+}
+
+.sidebar-toggle:hover {
+  background-color: #85b8ff;
+  transform: scale(1.1);
+}
+
+.sidebar-toggle svg {
+  width: 16px;
+  height: 16px;
+  display: block;
+}
+
+/* --- İÇERİK ALANI --- */
+.sidebar-content {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  color: #9fadbc;
+  opacity: 1;
+  transition: opacity 0.2s;
+  overflow-y: auto; /* Kaydırma çubuğu burada olsun */
+  overflow-x: hidden;
+}
+
+/* Kapalıyken içeriği gizle */
+.sidebar-area.closed .sidebar-content {
+  opacity: 0;
+  pointer-events: none;
+  display: none;
+}
+
+/* --- MENÜ ÖĞELERİ --- */
+.sidebar-menu-item {
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+  margin-bottom: 4px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: background 0.2s;
+}
+
+.sidebar-menu-item:hover {
+  background-color: rgba(255,255,255,0.1);
+  color: #fff;
+}
+
+.sidebar-menu-item.active {
+  background-color: #e9f2ff;
+  color: #0c66e4;
+}
+
+.sidebar-divider {
+  height: 1px;
+  background-color: rgba(255,255,255,0.1);
+  margin: 12px 0;
+}
+
+/* --- ÇALIŞMA ALANI BAŞLIĞI --- */
+.sidebar-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+}
+
+.add-board-icon {
+  cursor: pointer;
+}
+.add-board-icon:hover {
+  color: #85b8ff;
+}
+
+/* --- PANO LİSTESİ --- */
+.sidebar-board-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sidebar-board-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background 0.2s;
+}
+
+.sidebar-board-item:hover {
+  background-color: rgba(255,255,255,0.1);
+}
+
+.sidebar-board-item.active {
+  background-color: rgba(255,255,255,0.15);
+  color: #fff;
+}
+
+.board-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  overflow: hidden;
+}
+
+.board-color-icon {
+  width: 20px;
+  height: 20px;
+  background: linear-gradient(135deg, #a66a98 0%, #89609e 100%);
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.board-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* --- PANO AKSİYONLARI (Silme Butonu) --- */
+.board-actions {
+  display: flex;
+  gap: 8px;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.sidebar-board-item:hover .board-actions {
+  opacity: 1;
+}
+
+.action-icon {
+  color: #9fadbc;
+  transition: color 0.2s;
+}
+
+.action-icon:hover {
+  color: #fff;
+}
+
+.action-icon.delete:hover {
+  color: #eb5a46;
+}

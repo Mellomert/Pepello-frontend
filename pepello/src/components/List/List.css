@@ -1,0 +1,199 @@
+.list-container {
+  background-color: #101204; /* Görseldeki koyu renk */
+  width: 272px;
+  min-width: 272px;
+  border-radius: 12px;
+  padding: 12px;
+  margin-right: 12px;
+  display: flex;
+  flex-direction: column;
+  max-height: 100%;
+  color: #b6c2cf;
+  border: 1px solid #22272b;
+}
+
+/* --- HEADER --- */
+.list-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  padding: 4px 2px;
+  cursor: grab;
+}
+
+.list-title {
+  font-weight: 600;
+  font-size: 14px;
+  color: #fff;
+  padding: 4px 8px;
+  margin: 0;
+  flex: 1;
+  cursor: pointer;
+}
+
+.list-title-input {
+  background: #22272b;
+  border: 2px solid #85b8ff;
+  border-radius: 3px;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 4px 8px;
+  width: 100%;
+  outline: none;
+}
+
+/* --- MENÜ BUTONU --- */
+.list-menu-wrapper {
+  position: relative;
+}
+
+.btn-icon {
+  background: transparent;
+  border: none;
+  color: #9fadbc;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s;
+}
+
+.btn-icon:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+/* --- MENÜ DROPDOWN --- */
+.list-menu-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  width: 220px;
+  background: #282e33;
+  border: 1px solid #384148;
+  border-radius: 8px;
+  box-shadow: 0 8px 16px rgba(0,0,0,0.5);
+  z-index: 50;
+  padding: 8px 0;
+  color: #b6c2cf;
+  animation: fadeIn 0.15s ease;
+}
+
+.menu-header {
+  text-align: center;
+  font-size: 14px;
+  font-weight: 600;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #384148;
+  margin-bottom: 4px;
+  color: #9fadbc;
+}
+
+.menu-item {
+  padding: 8px 12px;
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.menu-item:hover {
+  background: #384148;
+  color: #fff;
+}
+
+.menu-item.danger { color: #eb5a46; }
+.menu-item.danger:hover { background: rgba(235, 90, 70, 0.1); }
+
+.menu-divider {
+  height: 1px;
+  background: #384148;
+  margin: 4px 0;
+}
+
+/* --- KART LİSTESİ ALANI --- */
+.card-list {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 10px;
+  padding: 0 2px;
+}
+
+/* --- FOOTER & KART EKLEME --- */
+.list-footer {
+  margin-top: 8px;
+}
+
+.btn-add-card {
+  width: 100%;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  color: #9fadbc;
+  padding: 8px 8px;
+  text-align: left;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  transition: background 0.2s, color 0.2s;
+}
+
+.btn-add-card:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+/* KART EKLEME FORMU */
+.add-card-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.card-textarea {
+  background: #22272b;
+  border: none;
+  border-radius: 8px;
+  color: #fff;
+  padding: 8px 12px;
+  resize: none;
+  width: 100%;
+  font-family: inherit;
+  font-size: 14px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.3);
+}
+
+.card-textarea:focus {
+  outline: 2px solid #85b8ff;
+}
+
+.add-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-close {
+  background: transparent;
+  border: none;
+  color: #9fadbc;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  padding: 4px;
+}
+.btn-close:hover { color: #eb5a46; }
+
+/* Animasyon */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
