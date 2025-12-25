@@ -29,7 +29,7 @@ const Auth = ({ onLogin }) => {
     console.log("1. Butona tıklandı. İşlem başlıyor...");
 
     // Backend adresi
-    const BASE_URL = "http://localhost:8080/auth";
+    const BASE_URL = "http://localhost:8080/api/auth";
 
     try {
       let endpoint = "";
