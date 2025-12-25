@@ -3,28 +3,22 @@ import "./App.css";
 import Board from "./components/Board/Board";
 import Auth from "./components/Auth/Auth";
 import Sidebar from "./components/Sidebar/Sidebar";
-import TeamSelect from "./components/TeamSelect/TeamSelect"; // YENİ BİLEŞEN
+import TeamSelect from "./components/TeamSelect/TeamSelect";
 import { v4 as uuidv4 } from "uuid";
 import {
   FiX,
   FiTrash2,
   FiSearch,
   FiImage,
-  FiLogOut,
   FiGrid,
+  FiLogOut,
 } from "react-icons/fi";
 
-// Varsayılan Üyeler
+// Varsayılan Üyeler (İleride burası da backend'den çekilebilir)
 const INITIAL_MEMBERS = [
   { id: "m1", name: "Mert Pepele", initials: "MP", color: "#579dff" },
   { id: "m2", name: "Ali Yılmaz", initials: "AY", color: "#ff9f1a" },
   { id: "m3", name: "Ayşe Demir", initials: "AD", color: "#eb5a46" },
-];
-
-// Varsayılan Takımlar (İlk açılış için)
-const INITIAL_TEAMS = [
-  { id: "t1", name: "Kişisel Alan" },
-  { id: "t2", name: "Pepello Şirketi" },
 ];
 
 // ARKA PLAN SEÇENEKLERİ
@@ -64,30 +58,15 @@ function App() {
     () => localStorage.getItem("pepello-user") || null
   );
 
-  // --- TAKIM STATE (YENİ) ---
-  const [teams, setTeams] = useState(() => {
-    const saved = localStorage.getItem("pepello-teams");
-    return saved ? JSON.parse(saved) : INITIAL_TEAMS;
-  });
-
-  const [activeTeam, setActiveTeam] = useState(null); // Başlangıçta takım seçili değil
+  // Aktif seçili takım
+  const [activeTeam, setActiveTeam] = useState(null);
 
   // --- PANOLAR STATE ---
+  // Not: Panolar şimdilik LocalStorage'da tutuluyor.
+  // Backend'e pano bağlama işini bir sonraki aşamada yapacağız.
   const [boards, setBoards] = useState(() => {
     const saved = localStorage.getItem("pepello-boards-list");
-    let parsedBoards = saved
-      ? JSON.parse(saved)
-      : [
-          { id: "b1", name: "Pepello Projesi", teamId: "t1" }, // Varsayılan teamId ekledik
-          { id: "b2", name: "Kişisel Planlar", teamId: "t1" },
-          { id: "b3", name: "Pazarlama", teamId: "t2" },
-        ];
-
-    // Eski verilerde teamId yoksa onlara varsayılan takımı ata (Migration)
-    parsedBoards = parsedBoards.map((b) =>
-      b.teamId ? b : { ...b, teamId: INITIAL_TEAMS[0].id }
-    );
-    return parsedBoards;
+    return saved ? JSON.parse(saved) : [];
   });
 
   const [activeBoardId, setActiveBoardId] = useState(
@@ -104,12 +83,12 @@ function App() {
   const [isMembersModalOpen, setIsMembersModalOpen] = useState(false);
   const [newMemberName, setNewMemberName] = useState("");
 
-  // Seçili takıma ait panoları filtrele
+  // Seçili takıma ait panoları filtrele (ID Eşleşmesi Önemli!)
+  // Backend'den gelen ID sayı (int) olabilir, o yüzden '==' kullanıyoruz.
   const teamBoards = activeTeam
-    ? boards.filter((b) => b.teamId === activeTeam.id)
+    ? boards.filter((b) => b.teamId == activeTeam.id)
     : [];
 
-  // Aktif panoyu bul (Eğer listede varsa)
   const activeBoard = teamBoards.find((b) => b.id === activeBoardId);
 
   // --- EFFECTLER ---
@@ -117,7 +96,6 @@ function App() {
   // Takım değişince, o takımın ilk panosunu seç (veya boş bırak)
   useEffect(() => {
     if (activeTeam && teamBoards.length > 0) {
-      // Eğer daha önce bu takımda bir pano seçildiyse onu hatırla, yoksa ilkini seç
       const lastActive = localStorage.getItem(
         `pepello-last-board-${activeTeam.id}`
       );
@@ -134,7 +112,6 @@ function App() {
   // Pano değişince arkaplanı ve üyeleri yükle
   useEffect(() => {
     if (!activeBoardId) return;
-
     localStorage.setItem(`pepello-last-board-${activeTeam?.id}`, activeBoardId);
 
     const savedBg = localStorage.getItem(`pepello-bg-${activeBoardId}`);
@@ -149,7 +126,7 @@ function App() {
     setSearchString("");
   }, [activeBoardId]);
 
-  // Veri Kaydetme
+  // Veri Kaydetme (LocalStorage)
   useEffect(
     () => localStorage.setItem(`pepello-bg-${activeBoardId}`, boardBackground),
     [boardBackground, activeBoardId]
@@ -162,11 +139,9 @@ function App() {
       ),
     [members, activeBoardId]
   );
-
   useEffect(() => {
     localStorage.setItem("pepello-boards-list", JSON.stringify(boards));
-    localStorage.setItem("pepello-teams", JSON.stringify(teams));
-  }, [boards, teams]);
+  }, [boards]);
 
   useEffect(() => {
     document.title = activeBoard ? `${activeBoard.name} | Pepello` : "Pepello";
@@ -181,19 +156,17 @@ function App() {
 
   const handleLogout = () => {
     setCurrentUser(null);
-    setActiveTeam(null); // Çıkış yapınca takım seçimini de sıfırla
+    setActiveTeam(null);
     localStorage.removeItem("pepello-user");
-  };
-
-  const handleCreateTeam = (teamName) => {
-    const newTeam = { id: `t${Date.now()}`, name: teamName };
-    setTeams([...teams, newTeam]);
+    localStorage.removeItem("token");
+    window.location.reload();
   };
 
   const addBoard = () => {
     const name = prompt("Yeni pano ismi:");
     if (name && activeTeam) {
-      const newBoard = { id: `b${Date.now()}`, name, teamId: activeTeam.id }; // teamId ekledik
+      // Not: teamId artık backend'den gelen gerçek ID olacak (sayı veya string)
+      const newBoard = { id: `b${Date.now()}`, name, teamId: activeTeam.id };
       setBoards([...boards, newBoard]);
       setActiveBoardId(newBoard.id);
     }
@@ -207,13 +180,8 @@ function App() {
     if (window.confirm("Bu panoyu silmek istediğine emin misin?")) {
       const newBoards = boards.filter((b) => b.id !== boardId);
       setBoards(newBoards);
-
-      // Sildikten sonra aynı takımdaki diğer panoya geç
-      const remainingTeamBoards = newBoards.filter(
-        (b) => b.teamId === activeTeam.id
-      );
-      if (remainingTeamBoards.length > 0)
-        setActiveBoardId(remainingTeamBoards[0].id);
+      const remaining = newBoards.filter((b) => b.teamId == activeTeam.id);
+      if (remaining.length > 0) setActiveBoardId(remaining[0].id);
     }
   };
 
@@ -245,30 +213,20 @@ function App() {
     }
   };
 
-  // --- RENDER MANTIĞI ---
+  // --- RENDER ---
 
-  // 1. Giriş Yapılmamışsa -> Auth
+  // 1. Kullanıcı Giriş Yapmamışsa -> Auth Ekranı
   if (!currentUser) return <Auth onLogin={handleLogin} />;
 
-  // 2. Takım Seçilmemişse -> TeamSelect
+  // 2. Takım Seçilmemişse -> TeamSelect Ekranı (Backend'den veri çeker)
   if (!activeTeam) {
     return (
-      <TeamSelect
-        teams={teams}
-        onSelectTeam={setActiveTeam}
-        onCreateTeam={handleCreateTeam}
-        currentUser={currentUser}
-      />
+      <TeamSelect onSelectTeam={setActiveTeam} currentUser={currentUser} />
     );
   }
 
   const getBoardStyle = () => {
-    // 1. Pano seçili değilse düz renk
-    if (!activeBoardId) {
-      return { backgroundColor: "#1d2125" };
-    }
-
-    // 2. Eğer bir RESİM ise (URL içeriyorsa)
+    if (!activeBoardId) return { backgroundColor: "#1d2125" };
     if (boardBackground.startsWith("http")) {
       return {
         backgroundImage: `url(${boardBackground})`,
@@ -277,17 +235,14 @@ function App() {
         backgroundRepeat: "no-repeat",
       };
     }
-
-    // 3. Renk veya Gradient ise (Sadece background kullanıyoruz, size/pos çakışması olmasın diye)
     return { background: boardBackground };
   };
 
-  // 3. Her şey tamsa -> Ana Uygulama (Dashboard)
+  // 3. Ana Uygulama (Dashboard)
   return (
     <div className="app-container">
       {/* HEADER */}
       <header className="header-area">
-        {/* SOL TARAFTA: Sadece Takıma Dönüş, Logo ve Takım İsmi */}
         <div className="header-left">
           <button
             onClick={() => setActiveTeam(null)}
@@ -297,9 +252,7 @@ function App() {
           >
             <FiGrid size={20} />
           </button>
-
           <span className="app-logo">Pepello</span>
-
           <span
             style={{
               fontSize: "13px",
@@ -316,9 +269,7 @@ function App() {
           </span>
         </div>
 
-        {/* SAĞ TARAFTA: Pano İsmi, Arka Plan, Arama, Profil, Çıkış */}
         <div className="header-right">
-          {/* 1. PANO İSMİ (Burada olmalı!) */}
           {activeBoardId && (
             <input
               className="header-board-title"
@@ -327,8 +278,6 @@ function App() {
               placeholder="Pano İsmi"
             />
           )}
-
-          {/* 2. ARKA PLAN BUTONU */}
           {activeBoardId && (
             <div style={{ position: "relative" }}>
               <button
@@ -394,8 +343,6 @@ function App() {
               )}
             </div>
           )}
-
-          {/* 3. ARAMA */}
           <div className="header-search">
             <FiSearch className="search-icon" size={16} />
             <input
@@ -405,8 +352,6 @@ function App() {
               onChange={(e) => setSearchString(e.target.value)}
             />
           </div>
-
-          {/* Ayırıcı */}
           <div
             style={{
               width: "1px",
@@ -415,8 +360,6 @@ function App() {
               margin: "0 4px",
             }}
           ></div>
-
-          {/* 4. PROFIL ve ÇIKIŞ */}
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
             <div
               style={{
@@ -449,7 +392,7 @@ function App() {
       {/* MAIN CONTENT */}
       <div className="main-content">
         <Sidebar
-          boards={teamBoards} // Sadece o takıma ait panoları gönderiyoruz
+          boards={teamBoards}
           activeBoardId={activeBoardId}
           onSwitchBoard={setActiveBoardId}
           onAddBoard={addBoard}
@@ -457,7 +400,6 @@ function App() {
           onRenameBoard={renameBoard}
           onShowMembers={() => setIsMembersModalOpen(true)}
         />
-
         <main className="board-area" style={getBoardStyle()}>
           {activeBoardId ? (
             <Board
@@ -517,7 +459,6 @@ function App() {
                 <FiX size={24} />
               </button>
             </div>
-
             <div className="members-body">
               <div className="members-input-group">
                 <input
@@ -542,7 +483,6 @@ function App() {
                   Ekle
                 </button>
               </div>
-
               <div className="members-list">
                 {members.map((m) => (
                   <div key={m.id} className="member-item">
@@ -564,17 +504,6 @@ function App() {
                     </button>
                   </div>
                 ))}
-                {members.length === 0 && (
-                  <div
-                    style={{
-                      textAlign: "center",
-                      color: "#9fadbc",
-                      padding: "20px",
-                    }}
-                  >
-                    Henüz üye yok.
-                  </div>
-                )}
               </div>
             </div>
           </div>

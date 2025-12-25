@@ -1,11 +1,17 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+// react-icons paketinin yüklü olduğundan emin ol, yoksa hata verir.
+// Eğer yüklü değilse terminale: npm install react-icons yazmalısın.
 import { FiTrello, FiUser, FiMail, FiLock, FiCalendar } from "react-icons/fi";
 import "./Auth.css";
 
 const Auth = ({ onLogin }) => {
-  const [isRegistering, setIsRegistering] = useState(false); // Giriş mi Kayıt mı?
+  const [isRegistering, setIsRegistering] = useState(false);
 
-  // Form Verileri
+  // Sayfa yüklendiğinde bu çalışır.
+  useEffect(() => {
+    console.log("Auth bileşeni yüklendi! (Eğer bunu görüyorsan kod güncel)");
+  }, []);
+
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
@@ -20,31 +26,86 @@ const Auth = ({ onLogin }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    console.log("1. Butona tıklandı. İşlem başlıyor...");
 
-    if (isRegistering) {
-      // KAYIT OLMA MODU
-      const { firstName, lastName, email, password, birthDate } = formData;
+    // Backend adresi
+    const BASE_URL = "http://localhost:8080/auth";
 
-      if (firstName && lastName && email && password && birthDate) {
-        const response = await fetch("http://localhost:8080/api/register", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ email, password }),
-        });
+    try {
+      let endpoint = "";
+      let bodyData = {};
+
+      if (isRegistering) {
+        console.log("2. Mod: Kayıt Ol");
+        endpoint = `${BASE_URL}/register`;
+
+        // Form verisi kontrolü
+        if (
+          !formData.firstName ||
+          !formData.lastName ||
+          !formData.email ||
+          !formData.password ||
+          !formData.birthDate
+        ) {
+          alert("Lütfen tüm alanları doldurun!");
+          return;
+        }
+
+        bodyData = {
+          firstName: formData.firstName,
+          lastName: formData.lastName,
+          email: formData.email,
+          password: formData.password,
+          birthday: formData.birthDate,
+        };
       } else {
-        alert("Lütfen tüm alanları doldurun!");
+        console.log("2. Mod: Giriş Yap");
+        endpoint = `${BASE_URL}/login`;
+
+        if (!formData.email || !formData.password) {
+          alert("Email ve şifre girmelisiniz!");
+          return;
+        }
+
+        bodyData = {
+          email: formData.email,
+          password: formData.password,
+        };
       }
-    } else {
-      // GİRİŞ YAPMA MODU (Basitlik için sadece isim/email ile alıyoruz)
-      // Normalde burada email/şifre kontrolü yapılır.
-      // Şimdilik sadece Ad veya Email girilmesi yeterli.
-      if (formData.email || formData.firstName) {
-        // Eğer email girdiyse @ işaretinden öncesini isim yapalım, yoksa ismi kullanalım
-        const displayName = formData.firstName || formData.email.split("@")[0];
-        onLogin(displayName);
+
+      console.log(`3. İstek gönderiliyor: ${endpoint}`);
+      console.log("Gönderilen Veri:", JSON.stringify(bodyData));
+
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(bodyData),
+      });
+
+      console.log("4. Sunucudan cevap geldi. Durum kodu:", response.status);
+
+      const data = await response.json();
+      console.log("Gelen Veri:", data);
+
+      if (!response.ok) {
+        throw new Error(data.error || "İşlem başarısız oldu");
       }
+
+      // --- BAŞARILI ---
+      console.log("5. Başarılı! Token kaydediliyor...");
+      localStorage.setItem("token", data.token);
+
+      const displayName = isRegistering
+        ? formData.firstName
+        : formData.email.split("@")[0];
+
+      alert(`Hoşgeldin ${displayName}! Giriş başarılı.`);
+      onLogin(displayName);
+    } catch (error) {
+      console.error("HATA:", error);
+      alert("Bir hata oluştu: " + error.message);
     }
   };
 
@@ -76,7 +137,7 @@ const Auth = ({ onLogin }) => {
                     placeholder="Ad"
                     value={formData.firstName}
                     onChange={handleChange}
-                    required
+                    required={isRegistering} // Sadece kayıt modunda zorunlu
                   />
                 </div>
                 <div className="input-group">
@@ -87,7 +148,7 @@ const Auth = ({ onLogin }) => {
                     placeholder="Soyad"
                     value={formData.lastName}
                     onChange={handleChange}
-                    required
+                    required={isRegistering}
                   />
                 </div>
               </div>
@@ -99,24 +160,20 @@ const Auth = ({ onLogin }) => {
                   name="birthDate"
                   value={formData.birthDate}
                   onChange={handleChange}
-                  required
+                  required={isRegistering}
                   style={{ color: formData.birthDate ? "#fff" : "#9fadbc" }}
                 />
               </div>
             </>
           )}
 
-          {/* --- ORTAK ALANLAR (Email & Şifre) --- */}
-          {/* Giriş modunda sadece Kullanıcı Adı/Email soruyoruz basitlik için */}
-
+          {/* --- ORTAK ALANLAR --- */}
           <div className="input-group">
             <FiMail className="input-icon" />
             <input
-              type={isRegistering ? "email" : "text"}
+              type="email" // Tipi email olsun ki tarayıcı kontrol etsin
               name="email"
-              placeholder={
-                isRegistering ? "E-posta Adresi" : "E-posta veya Kullanıcı Adı"
-              }
+              placeholder="E-posta Adresi"
               value={formData.email}
               onChange={handleChange}
               required
@@ -144,12 +201,22 @@ const Auth = ({ onLogin }) => {
           {isRegistering ? (
             <p>
               Zaten hesabın var mı?{" "}
-              <span onClick={() => setIsRegistering(false)}>Giriş Yap</span>
+              <span
+                onClick={() => setIsRegistering(false)}
+                style={{ cursor: "pointer", color: "#61bd4f" }}
+              >
+                Giriş Yap
+              </span>
             </p>
           ) : (
             <p>
               Hesabın yok mu?{" "}
-              <span onClick={() => setIsRegistering(true)}>Kayıt Ol</span>
+              <span
+                onClick={() => setIsRegistering(true)}
+                style={{ cursor: "pointer", color: "#61bd4f" }}
+              >
+                Kayıt Ol
+              </span>
             </p>
           )}
         </div>
