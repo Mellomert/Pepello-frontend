@@ -1,15 +1,14 @@
 import React, { useState, useEffect } from "react";
-// react-icons paketinin yüklü olduğundan emin ol, yoksa hata verir.
-// Eğer yüklü değilse terminale: npm install react-icons yazmalısın.
+// react-icons paketinin yüklü olduğundan emin ol
 import { FiTrello, FiUser, FiMail, FiLock, FiCalendar } from "react-icons/fi";
 import "./Auth.css";
 
 const Auth = ({ onLogin }) => {
   const [isRegistering, setIsRegistering] = useState(false);
 
-  // Sayfa yüklendiğinde bu çalışır.
+  // Sayfa yüklendiğinde çalışır
   useEffect(() => {
-    console.log("Auth bileşeni yüklendi! (Eğer bunu görüyorsan kod güncel)");
+    console.log("Auth bileşeni yüklendi! (Kod güncel)");
   }, []);
 
   const [formData, setFormData] = useState({
@@ -28,7 +27,7 @@ const Auth = ({ onLogin }) => {
     e.preventDefault();
     console.log("1. Butona tıklandı. İşlem başlıyor...");
 
-    // Backend adresi
+    // Backend adresi (Global prefix /api ise burası doğrudur)
     const BASE_URL = "http://localhost:8080/api/auth";
 
     try {
@@ -74,7 +73,6 @@ const Auth = ({ onLogin }) => {
       }
 
       console.log(`3. İstek gönderiliyor: ${endpoint}`);
-      console.log("Gönderilen Veri:", JSON.stringify(bodyData));
 
       const response = await fetch(endpoint, {
         method: "POST",
@@ -94,14 +92,26 @@ const Auth = ({ onLogin }) => {
       }
 
       // --- BAŞARILI ---
-      console.log("5. Başarılı! Token kaydediliyor...");
+      console.log("5. Başarılı! Token ve Kullanıcı ID kaydediliyor...");
+
+      // 1. Token'ı kaydet
       localStorage.setItem("token", data.token);
+
+      // 2. User ID'yi kaydet (Backend'den 'userId' adıyla dönüyor)
+      if (data.userId) {
+        localStorage.setItem("userId", data.userId);
+        console.log("Kaydedilen User ID:", data.userId);
+      } else {
+        console.warn("Uyarı: Backend yanıtında userId bulunamadı!");
+      }
 
       const displayName = isRegistering
         ? formData.firstName
         : formData.email.split("@")[0];
 
       alert(`Hoşgeldin ${displayName}! Giriş başarılı.`);
+
+      // App.jsx'teki onLogin fonksiyonunu tetikle
       onLogin(displayName);
     } catch (error) {
       console.error("HATA:", error);
@@ -137,7 +147,7 @@ const Auth = ({ onLogin }) => {
                     placeholder="Ad"
                     value={formData.firstName}
                     onChange={handleChange}
-                    required={isRegistering} // Sadece kayıt modunda zorunlu
+                    required={isRegistering}
                   />
                 </div>
                 <div className="input-group">
@@ -171,7 +181,7 @@ const Auth = ({ onLogin }) => {
           <div className="input-group">
             <FiMail className="input-icon" />
             <input
-              type="email" // Tipi email olsun ki tarayıcı kontrol etsin
+              type="email"
               name="email"
               placeholder="E-posta Adresi"
               value={formData.email}

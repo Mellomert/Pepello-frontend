@@ -1,83 +1,92 @@
 import React, { useState, useEffect } from "react";
-import { FiUsers, FiChevronRight, FiPlus, FiLogOut } from "react-icons/fi";
+import { FiChevronRight, FiPlus, FiLogOut } from "react-icons/fi";
 import "./TeamSelect.css";
 
 const TeamSelect = ({ onSelectTeam, currentUser }) => {
-  const [teams, setTeams] = useState([]); // Takımlar artık State içinde
+  const [teams, setTeams] = useState([]);
   const [newTeamName, setNewTeamName] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Token'ı alıyoruz
   const token = localStorage.getItem("token");
+  const userId = localStorage.getItem("userId");
 
-  // --- 1. Takımları Backend'den Çekme Fonksiyonu ---
+  // --- 1. Takımları Backend'den Çekme ---
   const fetchTeams = async () => {
     try {
-      const response = await fetch("http://localhost:8080/api/team/list", {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`, // Backend'e kim olduğumuzu söylüyoruz
-        },
-      });
+      const response = await fetch(
+        `http://localhost:8080/api/user/${userId}/teams`,
+        {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
 
-      /* // BU KISMI GEÇİCİ OLARAK KAPATIYORUZ Kİ HATAYI GÖRELİM
       if (response.status === 401 || response.status === 403) {
-        handleLogout();
+        console.error("Yetki Hatası! Token geçersiz.");
+        setError("Oturum izni yok. Çıkış yapıp tekrar deneyin.");
         return;
       }
-      */
 
       if (response.ok) {
         const data = await response.json();
-        setTeams(data); // Gelen veriyi state'e atıyoruz
+        setTeams(data);
+        console.log("Gelen Takımlar:", data);
       } else {
-        setError("Takımlar yüklenemedi.");
+        setError("Takımlar yüklenemedi. Durum: " + response.status);
       }
     } catch (err) {
       console.error("Takım çekme hatası:", err);
-      setError("Bağlantı hatası oluştu.");
+      setError("Bağlantı hatası oluştu. Backend açık mı?");
     } finally {
       setLoading(false);
     }
   };
 
-  // Sayfa açılınca takımları çek
   useEffect(() => {
     fetchTeams();
   }, []);
 
-  // --- 2. Yeni Takım Oluşturma Fonksiyonu ---
+  // --- 2. Yeni Takım Oluşturma ---
   const handleCreate = async () => {
     if (!newTeamName.trim()) return;
 
     try {
-      const response = await fetch("http://localhost:8080/api/team", {
+      const bodyData = {
+        owner: userId,
+        icon: null, // İkon zorunlu değilse null gönder
+        name: newTeamName, // DİKKAT: Oluştururken 'name' gönderiyoruz (Request objesine bağlı)
+        description: "Yeni oluşturulan takım",
+      };
+
+      const response = await fetch("http://localhost:8080/api/team/new", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ name: newTeamName }),
+        body: JSON.stringify(bodyData),
       });
 
       if (response.ok) {
-        // Başarılıysa listeyi güncelle ve inputu temizle
         await fetchTeams();
         setNewTeamName("");
       } else {
-        alert("Takım oluşturulurken hata oluştu.");
+        alert("Takım oluşturulurken hata oluştu. Kod: " + response.status);
       }
     } catch (err) {
       console.error(err);
+      alert("Sunucuya ulaşılamadı.");
     }
   };
 
-  // Çıkış Yapma Yardımcısı
   const handleLogout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("pepello-user");
+    localStorage.removeItem("userId");
     window.location.reload();
   };
 
@@ -133,10 +142,15 @@ const TeamSelect = ({ onSelectTeam, currentUser }) => {
                 onClick={() => onSelectTeam(team)}
               >
                 <div className="team-info">
+                  {/* DÜZELTME BURADA: team.name yerine team.teamName kullanıldı */}
                   <div className="team-avatar">
-                    {team.name.charAt(0).toUpperCase()}
+                    {team.teamName
+                      ? team.teamName.charAt(0).toUpperCase()
+                      : "?"}
                   </div>
-                  <span className="team-name">{team.name}</span>
+                  <span className="team-name">
+                    {team.teamName || "İsimsiz Takım"}
+                  </span>
                 </div>
                 <FiChevronRight className="team-arrow" size={20} />
               </div>

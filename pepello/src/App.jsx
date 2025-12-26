@@ -61,13 +61,9 @@ function App() {
   // Aktif seçili takım
   const [activeTeam, setActiveTeam] = useState(null);
 
-  // --- PANOLAR STATE ---
-  // Not: Panolar şimdilik LocalStorage'da tutuluyor.
-  // Backend'e pano bağlama işini bir sonraki aşamada yapacağız.
-  const [boards, setBoards] = useState(() => {
-    const saved = localStorage.getItem("pepello-boards-list");
-    return saved ? JSON.parse(saved) : [];
-  });
+  // --- PANOLAR STATE (Backend'den gelecek) ---
+  const [boards, setBoards] = useState([]);
+  const [loadingBoards, setLoadingBoards] = useState(false);
 
   const [activeBoardId, setActiveBoardId] = useState(
     () => localStorage.getItem("pepello-active-board") || null
@@ -83,71 +79,112 @@ function App() {
   const [isMembersModalOpen, setIsMembersModalOpen] = useState(false);
   const [newMemberName, setNewMemberName] = useState("");
 
-  // Seçili takıma ait panoları filtrele (ID Eşleşmesi Önemli!)
-  // Backend'den gelen ID sayı (int) olabilir, o yüzden '==' kullanıyoruz.
-  const teamBoards = activeTeam
-    ? boards.filter((b) => b.teamId == activeTeam.id)
-    : [];
+  const token = localStorage.getItem("token");
 
-  const activeBoard = teamBoards.find((b) => b.id === activeBoardId);
-
-  // --- EFFECTLER ---
-
-  // Takım değişince, o takımın ilk panosunu seç (veya boş bırak)
+  // --- 1. PROJELERİ BACKEND'DEN ÇEKME ---
+  // Backend Endpoint: /api/team/{teamId}/projects
   useEffect(() => {
-    if (activeTeam && teamBoards.length > 0) {
-      const lastActive = localStorage.getItem(
-        `pepello-last-board-${activeTeam.id}`
-      );
-      if (lastActive && teamBoards.find((b) => b.id === lastActive)) {
-        setActiveBoardId(lastActive);
-      } else {
-        setActiveBoardId(teamBoards[0].id);
-      }
-    } else {
-      setActiveBoardId(null);
-    }
-  }, [activeTeam]);
+    if (!activeTeam || !token) return;
 
-  // Pano değişince arkaplanı ve üyeleri yükle
+    const fetchProjects = async () => {
+      setLoadingBoards(true);
+      try {
+        const response = await fetch(
+          `http://localhost:8080/api/team/${activeTeam.id}/projects`,
+          {
+            method: "GET",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
+
+        if (response.ok) {
+          const data = await response.json();
+          console.log("Gelen Projeler:", data);
+          setBoards(data);
+
+          // Eğer hiç proje yoksa seçimi kaldır, varsa ve eski seçim listede yoksa ilkini seç
+          if (data.length === 0) {
+            setActiveBoardId(null);
+          } else {
+            const exists = data.find((b) => b.id === activeBoardId);
+            if (!exists) setActiveBoardId(data[0].id);
+          }
+        } else {
+          console.error("Projeler alınamadı. Hata Kodu:", response.status);
+        }
+      } catch (error) {
+        console.error("Bağlantı hatası:", error);
+      } finally {
+        setLoadingBoards(false);
+      }
+    };
+
+    fetchProjects();
+  }, [activeTeam, token]); // Takım değiştiğinde çalışır
+
+  // --- 2. YENİ PANO OLUŞTURMA ---
+  // Backend Endpoint: /api/project
+  const addBoard = async () => {
+    const name = prompt("Yeni pano ismi:");
+    if (name && activeTeam) {
+      try {
+        const response = await fetch("http://localhost:8080/api/project", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          // DİKKAT: Backend 'projectName' bekliyor (name değil!)
+          body: JSON.stringify({
+            projectName: name,
+            projectDescription: "Yeni oluşturulan proje", // Opsiyonel açıklama
+            teamId: activeTeam.id, // Backend ilişkiyi kurmak için bunu bekleyebilir
+          }),
+        });
+
+        if (response.ok) {
+          const newProject = await response.json();
+          // Listeye ekle ve o panoya git
+          setBoards([...boards, newProject]);
+          setActiveBoardId(newProject.id);
+        } else {
+          console.error("Hata Detayı:", await response.text());
+          alert("Pano oluşturulamadı! Hata: " + response.status);
+        }
+      } catch (error) {
+        console.error(error);
+        alert("Sunucu hatası!");
+      }
+    }
+  };
+
+  // --- EKRAN AYARLARI (UI) ---
   useEffect(() => {
     if (!activeBoardId) return;
     localStorage.setItem(`pepello-last-board-${activeTeam?.id}`, activeBoardId);
 
+    // Arkaplanı localStorage'dan al
     const savedBg = localStorage.getItem(`pepello-bg-${activeBoardId}`);
     setBoardBackground(savedBg || BG_OPTIONS[0].value);
-
-    const savedMembers = localStorage.getItem(
-      `pepello-members-${activeBoardId}`
-    );
-    if (savedMembers) setMembers(JSON.parse(savedMembers));
-    else setMembers(INITIAL_MEMBERS);
-
     setSearchString("");
   }, [activeBoardId]);
 
-  // Veri Kaydetme (LocalStorage)
   useEffect(
     () => localStorage.setItem(`pepello-bg-${activeBoardId}`, boardBackground),
     [boardBackground, activeBoardId]
   );
-  useEffect(
-    () =>
-      localStorage.setItem(
-        `pepello-members-${activeBoardId}`,
-        JSON.stringify(members)
-      ),
-    [members, activeBoardId]
-  );
-  useEffect(() => {
-    localStorage.setItem("pepello-boards-list", JSON.stringify(boards));
-  }, [boards]);
 
   useEffect(() => {
-    document.title = activeBoard ? `${activeBoard.name} | Pepello` : "Pepello";
-  }, [activeBoard]);
+    const activeBoard = boards.find((b) => b.id === activeBoardId);
+    document.title = activeBoard
+      ? `${activeBoard.projectName || activeBoard.name} | Pepello`
+      : "Pepello";
+  }, [activeBoardId, boards]);
 
-  // --- FONKSİYONLAR ---
+  // --- YARDIMCI METODLAR ---
 
   const handleLogin = (username) => {
     setCurrentUser(username);
@@ -157,37 +194,31 @@ function App() {
   const handleLogout = () => {
     setCurrentUser(null);
     setActiveTeam(null);
+    // TÜM VERİLERİ TEMİZLE
     localStorage.removeItem("pepello-user");
     localStorage.removeItem("token");
+    localStorage.removeItem("userId"); // User ID'yi siliyoruz
     window.location.reload();
   };
 
-  const addBoard = () => {
-    const name = prompt("Yeni pano ismi:");
-    if (name && activeTeam) {
-      // Not: teamId artık backend'den gelen gerçek ID olacak (sayı veya string)
-      const newBoard = { id: `b${Date.now()}`, name, teamId: activeTeam.id };
-      setBoards([...boards, newBoard]);
-      setActiveBoardId(newBoard.id);
-    }
-  };
-
   const removeBoard = (boardId) => {
-    if (teamBoards.length === 1) {
+    // SİLME İŞLEMİ (Şimdilik sadece Frontend'den siliyoruz)
+    // İleride: DELETE /api/project/{id}
+    if (boards.length === 1) {
       alert("Takımda en az bir pano kalmalı!");
       return;
     }
     if (window.confirm("Bu panoyu silmek istediğine emin misin?")) {
       const newBoards = boards.filter((b) => b.id !== boardId);
       setBoards(newBoards);
-      const remaining = newBoards.filter((b) => b.teamId == activeTeam.id);
-      if (remaining.length > 0) setActiveBoardId(remaining[0].id);
+      if (newBoards.length > 0) setActiveBoardId(newBoards[0].id);
     }
   };
 
   const renameBoard = (boardId, newName) => {
+    // İsim güncelleme (Frontend)
     const newBoards = boards.map((b) =>
-      b.id === boardId ? { ...b, name: newName } : b
+      b.id === boardId ? { ...b, projectName: newName, name: newName } : b
     );
     setBoards(newBoards);
   };
@@ -215,15 +246,18 @@ function App() {
 
   // --- RENDER ---
 
-  // 1. Kullanıcı Giriş Yapmamışsa -> Auth Ekranı
+  // 1. Giriş Kontrolü
   if (!currentUser) return <Auth onLogin={handleLogin} />;
 
-  // 2. Takım Seçilmemişse -> TeamSelect Ekranı (Backend'den veri çeker)
+  // 2. Takım Seçimi (activeTeam yoksa)
   if (!activeTeam) {
     return (
       <TeamSelect onSelectTeam={setActiveTeam} currentUser={currentUser} />
     );
   }
+
+  // 3. Ana Uygulama
+  const activeBoard = boards.find((b) => b.id === activeBoardId);
 
   const getBoardStyle = () => {
     if (!activeBoardId) return { backgroundColor: "#1d2125" };
@@ -238,7 +272,6 @@ function App() {
     return { background: boardBackground };
   };
 
-  // 3. Ana Uygulama (Dashboard)
   return (
     <div className="app-container">
       {/* HEADER */}
@@ -265,7 +298,7 @@ function App() {
               alignItems: "center",
             }}
           >
-            {activeTeam.name}
+            {activeTeam.name || activeTeam.teamName}
           </span>
         </div>
 
@@ -273,7 +306,9 @@ function App() {
           {activeBoardId && (
             <input
               className="header-board-title"
-              value={activeBoard ? activeBoard.name : ""}
+              value={
+                activeBoard ? activeBoard.projectName || activeBoard.name : ""
+              }
               onChange={(e) => renameBoard(activeBoardId, e.target.value)}
               placeholder="Pano İsmi"
             />
@@ -392,7 +427,7 @@ function App() {
       {/* MAIN CONTENT */}
       <div className="main-content">
         <Sidebar
-          boards={teamBoards}
+          boards={boards}
           activeBoardId={activeBoardId}
           onSwitchBoard={setActiveBoardId}
           onAddBoard={addBoard}
@@ -401,7 +436,19 @@ function App() {
           onShowMembers={() => setIsMembersModalOpen(true)}
         />
         <main className="board-area" style={getBoardStyle()}>
-          {activeBoardId ? (
+          {loadingBoards ? (
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                height: "100%",
+                color: "#9fadbc",
+              }}
+            >
+              Projeler Yükleniyor...
+            </div>
+          ) : activeBoardId ? (
             <Board
               key={activeBoardId}
               boardId={activeBoardId}
@@ -420,7 +467,9 @@ function App() {
                 color: "#9fadbc",
               }}
             >
-              Bir pano seçin veya oluşturun.
+              {boards.length === 0
+                ? "Bu takımda henüz proje yok. '+' butonuna basarak yeni pano oluştur."
+                : "Soldan bir pano seç."}
             </div>
           )}
         </main>
@@ -431,7 +480,7 @@ function App() {
         <div className="footer-left">
           <span>Pepello &copy; 2025</span>
           <span className="footer-divider">•</span>
-          <span>Takım: {activeTeam.name}</span>
+          <span>Takım: {activeTeam.name || activeTeam.teamName}</span>
         </div>
         <div className="footer-right">
           <span className="status-dot"></span>
@@ -451,7 +500,7 @@ function App() {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="members-header">
-              <h3>{activeTeam.name} Üyeleri</h3>
+              <h3>{activeTeam.name || activeTeam.teamName} Üyeleri</h3>
               <button
                 className="members-close-btn"
                 onClick={() => setIsMembersModalOpen(false)}
