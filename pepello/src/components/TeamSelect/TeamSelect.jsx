@@ -13,6 +13,12 @@ const TeamSelect = ({ onSelectTeam, currentUser }) => {
 
   // --- 1. Takımları Backend'den Çekme ---
   const fetchTeams = async () => {
+    if (!userId) {
+      console.warn("User ID not found in LocalStorage!");
+      setLoading(false);
+      return;
+    }
+
     try {
       const response = await fetch(
         `http://localhost:8080/api/user/${userId}/teams`,
@@ -57,7 +63,7 @@ const TeamSelect = ({ onSelectTeam, currentUser }) => {
     try {
       const bodyData = {
         owner: userId,
-        icon: null, // İkon zorunlu değilse null gönder
+        icon: "c08d82ee-bd03-4c60-88d0-7863a0655f06", // İkon zorunlu değilse null gönder
         name: newTeamName, // DİKKAT: Oluştururken 'name' gönderiyoruz (Request objesine bağlı)
         description: "Yeni oluşturulan takım",
       };

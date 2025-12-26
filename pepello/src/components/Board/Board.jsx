@@ -1,102 +1,196 @@
 import React, { useState, useEffect } from "react";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
-import { v4 as uuidv4 } from "uuid";
 import confetti from "canvas-confetti";
 import CardDetail from "../CardDetail/CardDetail";
-import initialData from "../../data";
 import List from "../List/List";
-import { FiPlus, FiX } from "react-icons/fi"; // FiSearch ve FiImage SİLİNDİ (App.jsx'te kullanılıyor)
+import { FiPlus, FiX } from "react-icons/fi";
 import "./Board.css";
 
-// Varsayılan Etiketler
-const INITIAL_LABELS = [
-  { id: "l1", color: "#61bd4f", name: "Tamamlandı" },
-  { id: "l2", color: "#f2d600", name: "Dikkat" },
-  { id: "l3", color: "#eb5a46", name: "Acil" },
-  { id: "l4", color: "#c377e0", name: "Tasarım" },
-  { id: "l5", color: "#0079bf", name: "Yazılım" },
-];
-
-const Board = ({
-  currentUser,
-  boardId,
-  members,
-  addMember,
-  searchString, // App.jsx'ten gelen arama verisi
-}) => {
-  // --- 1. VERİYİ BOARD ID'YE GÖRE ÇEKME ---
-  const [data, setData] = useState(() => {
-    const storageKey = `pepello-board-${boardId}`;
-    const savedData = localStorage.getItem(storageKey);
-
-    if (savedData) {
-      const parsed = JSON.parse(savedData);
-      // Eski verilerde labels yoksa ekle (Migration)
-      if (!parsed.labels) {
-        return { ...parsed, labels: INITIAL_LABELS };
-      }
-      return parsed;
-    }
-    // Hiç veri yoksa başlangıç verisi
-    return { ...initialData, labels: INITIAL_LABELS };
+const Board = ({ currentUser, boardId, members, addMember, searchString }) => {
+  // --- STATE ---
+  const [data, setData] = useState({
+    lists: {},
+    listIds: [],
   });
+  const [loading, setLoading] = useState(true);
 
   const [isAddingList, setIsAddingList] = useState(false);
   const [listTitle, setListTitle] = useState("");
   const [activeCard, setActiveCard] = useState(null);
 
-  // Veri değişince kaydet
-  useEffect(() => {
-    localStorage.setItem(`pepello-board-${boardId}`, JSON.stringify(data));
-  }, [data, boardId]);
+  const token = localStorage.getItem("token");
 
-  // Aktivite Logu Oluşturucu
-  const createActivity = (text) => {
-    return {
-      id: uuidv4(),
-      text: text,
-      user: currentUser || "Anonim",
-      date: new Date().toLocaleString("tr-TR"),
-      type: "system",
-    };
-  };
+  // --- 1. DASHBOARD VERİSİNİ ÇEKME ---
+  const fetchBoardData = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch(
+        `http://localhost:8080/api/project/${boardId}/dashboard`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
 
-  const onCardClick = (listId, cardId) => {
-    setActiveCard({ listId, cardId });
-  };
+      if (response.ok) {
+        const dashboardData = await response.json();
+        const states = dashboardData.states || [];
+        const tasks = dashboardData.tasks || [];
 
-  const updateListTitle = (listId, newTitle) => {
-    const list = data.lists[listId];
-    list.title = newTitle;
-    setData({
-      ...data,
-      lists: { ...data.lists, [listId]: list },
-    });
-  };
+        const newLists = {};
+        const newListIds = [];
 
-  // Kartları Sıralama
-  const sortCards = (listId, sortType) => {
-    const list = data.lists[listId];
-    const cards = [...list.cards];
+        // Listeleri oluştur
+        states.forEach((state) => {
+          newListIds.push(state.id);
+          newLists[state.id] = {
+            id: state.id,
+            title: state.stateName,
+            cards: [],
+          };
+        });
 
-    if (sortType === "name") {
-      cards.sort((a, b) => a.content.localeCompare(b.content, "tr"));
-    } else if (sortType === "date") {
-      cards.sort((a, b) => {
-        if (!a.dueDate) return 1;
-        if (!b.dueDate) return -1;
-        return new Date(a.dueDate) - new Date(b.dueDate);
-      });
+        // Taskları dağıt
+        tasks.forEach((task) => {
+          const stateId = task.state?.id;
+          if (stateId && newLists[stateId]) {
+            const formattedCard = {
+              id: task.id,
+              content: task.taskTitle || "İsimsiz Kart",
+              description: task.taskDescription || "",
+              ...task,
+            };
+            newLists[stateId].cards.push(formattedCard);
+          }
+        });
+
+        setData({
+          lists: newLists,
+          listIds: newListIds,
+        });
+      } else {
+        console.error("Dashboard verisi çekilemedi:", response.status);
+      }
+    } catch (error) {
+      console.error("Veri çekme hatası:", error);
+    } finally {
+      setLoading(false);
     }
-
-    const newList = { ...list, cards };
-    setData({ ...data, lists: { ...data.lists, [listId]: newList } });
   };
 
-  // --- SÜRÜKLEME BİTİNCE ---
-  const onDragEnd = (result) => {
-    const { destination, source, draggableId, type } = result;
+  useEffect(() => {
+    if (boardId) fetchBoardData();
+  }, [boardId]);
 
+  // --- 2. LİSTE EKLEME ---
+  const addList = async () => {
+    if (!listTitle.trim()) return;
+    try {
+      const response = await fetch("http://localhost:8080/api/state/new", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          projectId: boardId,
+          stateName: listTitle,
+          icon: "c08d82ee-bd03-4c60-88d0-7863a0655f06",
+          color: "blue",
+        }),
+      });
+      if (response.ok) {
+        setListTitle("");
+        setIsAddingList(false);
+        fetchBoardData();
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  // --- 3. KART EKLEME ---
+  const addCard = async (listId, content) => {
+    try {
+      const response = await fetch("http://localhost:8080/api/task/new", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          stateId: listId,
+          projectId: boardId,
+          taskTitle: content,
+          taskDescription: "Açıklama girilmedi",
+          media: null,
+          assignee: null,
+        }),
+      });
+      if (response.ok) fetchBoardData();
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  // --- 4. KART GÜNCELLEME (DÜZELTİLDİ: PATCH + ID in URL) ---
+  const updateCard = async (listId, cardId, newFields) => {
+    // 1. Frontend'de Hızlı Güncelle (Optimistic UI)
+    const list = data.lists[listId];
+    const cardIndex = list.cards.findIndex((c) => c.id === cardId);
+    if (cardIndex === -1) return;
+
+    const currentCard = list.cards[cardIndex];
+    const updatedCard = { ...currentCard, ...newFields };
+    const newCards = [...list.cards];
+    newCards[cardIndex] = updatedCard;
+
+    const newList = { ...list, cards: newCards };
+    setData({ ...data, lists: { ...data.lists, [listId]: newList } });
+
+    // 2. Backend İsteği
+    // Sadece içerik veya açıklama değiştiğinde istek atıyoruz
+    if (newFields.content || newFields.description) {
+      try {
+        await fetch(`http://localhost:8080/api/task/${cardId}`, {
+          method: "PATCH", // İsteğin üzerine PATCH yapıldı
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            // Backend TaskUpdateRequest yapısına uygun veriler
+            taskTitle:
+              newFields.content !== undefined
+                ? newFields.content
+                : currentCard.taskTitle,
+            taskDescription:
+              newFields.description !== undefined
+                ? newFields.description
+                : currentCard.taskDescription || "Açıklama",
+            stateId: listId,
+          }),
+        });
+      } catch (err) {
+        console.error("Kart güncelleme hatası:", err);
+      }
+    }
+  };
+
+  // --- 5. KART TAŞIMA (Listeler Arası) ---
+  const moveCardToAnotherList = async (cardId, sourceListId, destListId) => {
+    const result = {
+      draggableId: cardId,
+      source: { droppableId: sourceListId, index: 0 },
+      destination: { droppableId: destListId, index: 0 },
+      type: "DEFAULT",
+    };
+    await onDragEnd(result);
+    setActiveCard({ listId: destListId, cardId: cardId });
+  };
+
+  // --- 6. SÜRÜKLE & BIRAK ---
+  const onDragEnd = async (result) => {
+    const { destination, source, draggableId, type } = result;
     if (!destination) return;
     if (
       destination.droppableId === source.droppableId &&
@@ -104,7 +198,6 @@ const Board = ({
     )
       return;
 
-    // LİSTE TAŞIMA
     if (type === "list") {
       const newListIds = Array.from(data.listIds);
       newListIds.splice(source.index, 1);
@@ -113,232 +206,102 @@ const Board = ({
       return;
     }
 
-    // KART TAŞIMA
     const startList = data.lists[source.droppableId];
     const finishList = data.lists[destination.droppableId];
+    const startCards = Array.from(startList.cards);
+    const [movedCard] = startCards.splice(source.index, 1);
 
-    // -- KONFETİ EFEKTİ --
-    if (startList !== finishList) {
-      const finishListTitle = finishList.title.toLowerCase();
+    if (startList === finishList) {
+      startCards.splice(destination.index, 0, movedCard);
+      const newList = { ...startList, cards: startCards };
+      setData({ ...data, lists: { ...data.lists, [newList.id]: newList } });
+    } else {
+      const finishCards = Array.from(finishList.cards);
+      finishCards.splice(destination.index, 0, movedCard);
+      const newStartList = { ...startList, cards: startCards };
+      const newFinishList = { ...finishList, cards: finishCards };
+      setData({
+        ...data,
+        lists: {
+          ...data.lists,
+          [newStartList.id]: newStartList,
+          [newFinishList.id]: newFinishList,
+        },
+      });
+
       if (
-        finishListTitle.includes("tamamlandı") ||
-        finishListTitle.includes("done") ||
-        finishListTitle.includes("bitti")
+        finishList.title &&
+        finishList.title.toLowerCase().includes("bitti")
       ) {
-        confetti({
-          particleCount: 100,
-          spread: 70,
-          origin: { y: 0.6 },
-          colors: ["#61bd4f", "#f2d600", "#0079bf", "#eb5a46"],
-        });
+        confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
       }
     }
 
-    // Aynı Liste
-    if (startList === finishList) {
-      const newCardIds = Array.from(startList.cards);
-      const [movedCard] = newCardIds.splice(source.index, 1);
-      newCardIds.splice(destination.index, 0, movedCard);
-      const newList = { ...startList, cards: newCardIds };
-      setData({ ...data, lists: { ...data.lists, [newList.id]: newList } });
-      return;
-    }
-
-    // Farklı Liste
-    const startCardIds = Array.from(startList.cards);
-    const [movedCard] = startCardIds.splice(source.index, 1);
-
-    // Log
-    const logActivity = createActivity(
-      `bu kartı ${startList.title} listesinden ${finishList.title} listesine taşıdı.`
-    );
-    const updatedMovedCard = {
-      ...movedCard,
-      activities: [logActivity, ...(movedCard.activities || [])],
-    };
-
-    const finishCardIds = Array.from(finishList.cards);
-    finishCardIds.splice(destination.index, 0, updatedMovedCard);
-
-    const newStartList = { ...startList, cards: startCardIds };
-    const newFinishList = { ...finishList, cards: finishCardIds };
-    setData({
-      ...data,
-      lists: {
-        ...data.lists,
-        [newStartList.id]: newStartList,
-        [newFinishList.id]: newFinishList,
-      },
-    });
-  };
-
-  // Aktif kart verisini bulma
-  let activeCardData = null;
-  let activeListTitle = "";
-  if (activeCard) {
-    const list = data.lists[activeCard.listId];
-    if (list) {
-      activeCardData = list.cards.find((c) => c.id === activeCard.cardId);
-      activeListTitle = list.title;
-    }
-  }
-
-  // --- CRUD İŞLEMLERİ ---
-
-  const addCard = (listId, content) => {
-    const newCardId = uuidv4();
-    const newCard = { id: newCardId, content };
-    const list = data.lists[listId];
-    const newList = { ...list, cards: [...list.cards, newCard] };
-    setData({ ...data, lists: { ...data.lists, [newList.id]: newList } });
-  };
-
-  const updateCard = (listId, cardId, newFields) => {
-    const list = data.lists[listId];
-    const cardIndex = list.cards.findIndex((c) => c.id === cardId);
-    const oldCard = list.cards[cardIndex];
-
-    // Loglama mantığı
-    let logActivity = null;
-    if (
-      newFields.labels &&
-      newFields.labels.length > (oldCard.labels?.length || 0)
-    ) {
-      logActivity = createActivity("bir etiket ekledi.");
-    } else if (newFields.dueDate && newFields.dueDate !== oldCard.dueDate) {
-      logActivity = createActivity(
-        `tarihi ${new Date(newFields.dueDate).toLocaleDateString(
-          "tr-TR"
-        )} olarak değiştirdi.`
-      );
-    } else if (newFields.coverColor && !oldCard.coverColor) {
-      logActivity = createActivity("karta kapak rengi ekledi.");
-    }
-
-    let finalActivities = newFields.activities || oldCard.activities || [];
-    if (logActivity) {
-      finalActivities = [logActivity, ...finalActivities];
-    }
-
-    const newCard = {
-      ...oldCard,
-      ...newFields,
-      activities: finalActivities,
-    };
-
-    const newCards = [...list.cards];
-    newCards[cardIndex] = newCard;
-    const newList = { ...list, cards: newCards };
-    setData({ ...data, lists: { ...data.lists, [listId]: newList } });
-  };
-
-  const removeCard = (listId, cardId) => {
-    const list = data.lists[listId];
-    const newCards = list.cards.filter((card) => card.id !== cardId);
-    const newList = { ...list, cards: newCards };
-    setData({ ...data, lists: { ...data.lists, [listId]: newList } });
-  };
-
-  const removeList = (listId) => {
-    if (!window.confirm("Listeyi silmek istediğine emin misin?")) return;
-    const newListIds = data.listIds.filter((id) => id !== listId);
-    const newLists = { ...data.lists };
-    delete newLists[listId];
-    setData({ ...data, listIds: newListIds, lists: newLists });
-  };
-
-  const duplicateList = (listId) => {
-    const list = data.lists[listId];
-    const newListId = uuidv4();
-    const newCards = list.cards.map((card) => ({
-      ...card,
-      id: uuidv4(),
-      activities: [],
-    }));
-    const newList = {
-      id: newListId,
-      title: `${list.title} (Kopya)`,
-      cards: newCards,
-    };
-    const listIndex = data.listIds.indexOf(listId);
-    const newListIds = [...data.listIds];
-    newListIds.splice(listIndex + 1, 0, newListId);
-    setData({
-      ...data,
-      lists: { ...data.lists, [newListId]: newList },
-      listIds: newListIds,
-    });
-  };
-
-  const clearList = (listId) => {
-    if (!window.confirm("Bu listedeki TÜM kartlar silinecek. Emin misin?"))
-      return;
-    const list = data.lists[listId];
-    const newList = { ...list, cards: [] };
-    setData({ ...data, lists: { ...data.lists, [listId]: newList } });
-  };
-
-  const addList = () => {
-    if (!listTitle.trim()) return;
-    const newListId = uuidv4();
-    const newList = { id: newListId, title: listTitle, cards: [] };
-    setData({
-      lists: { ...data.lists, [newListId]: newList },
-      listIds: [...data.listIds, newListId],
-    });
-    setListTitle("");
-    setIsAddingList(false);
-  };
-
-  const moveCardToAnotherList = (cardId, sourceListId, destListId) => {
-    const sourceList = data.lists[sourceListId];
-    const destList = data.lists[destListId];
-    const logActivity = createActivity(
-      `bu kartı ${sourceList.title} listesinden ${destList.title} listesine taşıdı.`
-    );
-    const sourceCards = [...sourceList.cards];
-    const cardIndex = sourceCards.findIndex((c) => c.id === cardId);
-    const [movedCard] = sourceCards.splice(cardIndex, 1);
-    const updatedMovedCard = {
-      ...movedCard,
-      activities: [logActivity, ...(movedCard.activities || [])],
-    };
-    const destCards = [...destList.cards, updatedMovedCard];
-    setData({
-      ...data,
-      lists: {
-        ...data.lists,
-        [sourceListId]: { ...sourceList, cards: sourceCards },
-        [destListId]: { ...destList, cards: destCards },
-      },
-    });
-    setActiveCard({ listId: destListId, cardId });
-  };
-
-  const duplicateCard = (listId, cardId) => {
-    const list = data.lists[listId];
-    const cardToCopy = list.cards.find((c) => c.id === cardId);
-    if (!cardToCopy) return;
-    const newCard = {
-      ...cardToCopy,
-      id: uuidv4(),
-      content: `${cardToCopy.content} (Kopya)`,
-      activities: [
-        {
-          id: uuidv4(),
-          text: "Kart kopyalandı.",
-          user: "Sistem",
-          date: new Date().toLocaleString(),
-          type: "system",
+    try {
+      await fetch(`http://localhost:8080/api/task/${draggableId}/move`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
         },
-      ],
-    };
-    const cardIndex = list.cards.findIndex((c) => c.id === cardId);
-    const newCards = [...list.cards];
-    newCards.splice(cardIndex + 1, 0, newCard);
-    const newList = { ...list, cards: newCards };
-    setData({ ...data, lists: { ...data.lists, [listId]: newList } });
+        body: JSON.stringify({ newStateId: finishList.id }),
+      });
+    } catch (err) {
+      console.error("Taşıma hatası:", err);
+      fetchBoardData();
+    }
   };
+
+  // --- SİLME ---
+  const removeList = async (listId) => {
+    if (!window.confirm("Listeyi silmek istiyor musun?")) return;
+    try {
+      await fetch(`http://localhost:8080/api/state/${listId}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      fetchBoardData();
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const removeCard = async (listId, cardId) => {
+    try {
+      await fetch(`http://localhost:8080/api/task/${cardId}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      fetchBoardData();
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const updateListTitle = async (listId, newTitle) => {
+    const list = data.lists[listId];
+    list.title = newTitle;
+    setData({ ...data });
+    try {
+      await fetch(`http://localhost:8080/api/state`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ id: listId, stateName: newTitle }),
+      });
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const duplicateCard = async (listId, cardId) => {
+    alert("Kopyalama özelliği henüz backend'de aktif değil.");
+  };
+
+  if (loading)
+    return <div style={{ color: "white", padding: "20px" }}>Yükleniyor...</div>;
 
   return (
     <DragDropContext onDragEnd={onDragEnd}>
@@ -348,11 +311,10 @@ const Board = ({
             className="board-container"
             ref={provided.innerRef}
             {...provided.droppableProps}
-            /* Board arka planı artık App.jsx'teki <main> tag'inde yönetiliyor */
           >
-            {/* LİSTELER */}
             {data.listIds.map((listId, index) => {
               const list = data.lists[listId];
+              if (!list) return null;
               return (
                 <Draggable draggableId={list.id} index={index} key={list.id}>
                   {(provided) => (
@@ -364,26 +326,22 @@ const Board = ({
                       addCard={addCard}
                       removeCard={removeCard}
                       removeList={removeList}
-                      onCardClick={onCardClick}
-                      searchString={searchString} // Filtreleme için App.jsx'ten gelen veri
+                      onCardClick={(lid, cid) =>
+                        setActiveCard({ listId: lid, cardId: cid })
+                      }
+                      searchString={searchString}
                       updateListTitle={updateListTitle}
-                      sortCards={sortCards}
                       currentUser={currentUser}
-                      duplicateList={duplicateList}
-                      clearList={clearList}
                     />
                   )}
                 </Draggable>
               );
             })}
             {provided.placeholder}
-
-            {/* LİSTE EKLE BUTONU */}
             <div className="add-list-wrapper">
               {isAddingList ? (
                 <div className="add-list-form">
                   <input
-                    type="text"
                     className="list-input"
                     placeholder="Liste başlığı..."
                     value={listTitle}
@@ -415,21 +373,22 @@ const Board = ({
         )}
       </Droppable>
 
-      {/* KART DETAY MODALI */}
-      {activeCardData && (
+      {activeCard && data.lists[activeCard.listId] && (
         <CardDetail
-          card={activeCardData}
-          listTitle={activeListTitle}
+          card={data.lists[activeCard.listId].cards.find(
+            (c) => c.id === activeCard.cardId
+          )}
+          listTitle={data.lists[activeCard.listId].title}
           listId={activeCard.listId}
           onClose={() => setActiveCard(null)}
+          currentUser={currentUser}
           updateCard={updateCard}
           removeCard={removeCard}
           allLists={data.lists}
           moveCardToAnotherList={moveCardToAnotherList}
-          currentUser={currentUser}
           duplicateCard={duplicateCard}
           allMembers={members}
-          addMember={addMember}
+          addMember={() => alert("Üyeyi ana ekrandan eklemelisiniz.")}
         />
       )}
     </DragDropContext>

@@ -6,22 +6,16 @@ import Sidebar from "./components/Sidebar/Sidebar";
 import TeamSelect from "./components/TeamSelect/TeamSelect";
 import { v4 as uuidv4 } from "uuid";
 import {
-  FiX,
-  FiTrash2,
+  FiGrid,
   FiSearch,
   FiImage,
-  FiGrid,
   FiLogOut,
+  FiTrash2,
+  FiX,
 } from "react-icons/fi";
 
-// Varsayılan Üyeler (İleride burası da backend'den çekilebilir)
-const INITIAL_MEMBERS = [
-  { id: "m1", name: "Mert Pepele", initials: "MP", color: "#579dff" },
-  { id: "m2", name: "Ali Yılmaz", initials: "AY", color: "#ff9f1a" },
-  { id: "m3", name: "Ayşe Demir", initials: "AD", color: "#eb5a46" },
-];
+const INITIAL_MEMBERS = [];
 
-// ARKA PLAN SEÇENEKLERİ
 const BG_OPTIONS = [
   {
     type: "color",
@@ -53,15 +47,11 @@ const BG_OPTIONS = [
 ];
 
 function App() {
-  // --- KULLANICI STATE ---
   const [currentUser, setCurrentUser] = useState(
     () => localStorage.getItem("pepello-user") || null
   );
 
-  // Aktif seçili takım
   const [activeTeam, setActiveTeam] = useState(null);
-
-  // --- PANOLAR STATE (Backend'den gelecek) ---
   const [boards, setBoards] = useState([]);
   const [loadingBoards, setLoadingBoards] = useState(false);
 
@@ -69,20 +59,18 @@ function App() {
     () => localStorage.getItem("pepello-active-board") || null
   );
 
-  // Header Kontrolleri
   const [searchString, setSearchString] = useState("");
   const [boardBackground, setBoardBackground] = useState(BG_OPTIONS[0].value);
   const [isBgMenuOpen, setIsBgMenuOpen] = useState(false);
 
-  // Üye Yönetimi
+  // --- ÜYE STATE ---
   const [members, setMembers] = useState(INITIAL_MEMBERS);
   const [isMembersModalOpen, setIsMembersModalOpen] = useState(false);
   const [newMemberName, setNewMemberName] = useState("");
 
   const token = localStorage.getItem("token");
 
-  // --- 1. PROJELERİ BACKEND'DEN ÇEKME ---
-  // Backend Endpoint: /api/team/{teamId}/projects
+  // --- 1. PROJELERİ ÇEKME ---
   useEffect(() => {
     if (!activeTeam || !token) return;
 
@@ -102,56 +90,96 @@ function App() {
 
         if (response.ok) {
           const data = await response.json();
-          console.log("Gelen Projeler:", data);
-          setBoards(data);
+          const mappedBoards = data.map((project) => ({
+            ...project,
+            name: project.projectName,
+            id: project.id,
+          }));
 
-          // Eğer hiç proje yoksa seçimi kaldır, varsa ve eski seçim listede yoksa ilkini seç
-          if (data.length === 0) {
+          setBoards(mappedBoards);
+
+          if (mappedBoards.length === 0) {
             setActiveBoardId(null);
           } else {
-            const exists = data.find((b) => b.id === activeBoardId);
-            if (!exists) setActiveBoardId(data[0].id);
+            const exists = mappedBoards.find((b) => b.id === activeBoardId);
+            if (!exists) setActiveBoardId(null);
           }
         } else {
-          console.error("Projeler alınamadı. Hata Kodu:", response.status);
+          setBoards([]);
         }
       } catch (error) {
         console.error("Bağlantı hatası:", error);
+        setBoards([]);
       } finally {
         setLoadingBoards(false);
       }
     };
 
     fetchProjects();
-  }, [activeTeam, token]); // Takım değiştiğinde çalışır
+  }, [activeTeam, token]);
 
-  // --- 2. YENİ PANO OLUŞTURMA ---
-  // Backend Endpoint: /api/project
+  // --- 2. ÜYELERİ ÇEKME ---
+  const fetchMembers = async () => {
+    if (!activeTeam || !token) return;
+    try {
+      const response = await fetch(
+        `http://localhost:8080/api/team/${activeTeam.id}/members`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        const mappedMembers = data.map((user) => ({
+          id: user.id,
+          name: `${user.firstName} ${user.lastName}`,
+          email: user.email,
+          initials: `${user.firstName?.charAt(0) || ""}${
+            user.lastName?.charAt(0) || ""
+          }`.toUpperCase(),
+          color: "#579dff",
+        }));
+        setMembers(mappedMembers);
+      }
+    } catch (err) {
+      console.error("Üyeler çekilemedi:", err);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTeam) fetchMembers();
+  }, [activeTeam]);
+
+  // --- 3. YENİ PANO OLUŞTURMA ---
   const addBoard = async () => {
     const name = prompt("Yeni pano ismi:");
     if (name && activeTeam) {
       try {
-        const response = await fetch("http://localhost:8080/api/project", {
+        const today = new Date().toISOString().split("T")[0];
+        const bodyData = {
+          projectName: name,
+          projectDescription: "Yeni oluşturulan proje",
+          icon: null,
+          startDate: today,
+          endDate: today,
+        };
+
+        const response = await fetch("http://localhost:8080/api/project/new", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
-          // DİKKAT: Backend 'projectName' bekliyor (name değil!)
-          body: JSON.stringify({
-            projectName: name,
-            projectDescription: "Yeni oluşturulan proje", // Opsiyonel açıklama
-            teamId: activeTeam.id, // Backend ilişkiyi kurmak için bunu bekleyebilir
-          }),
+          body: JSON.stringify(bodyData),
         });
 
         if (response.ok) {
           const newProject = await response.json();
-          // Listeye ekle ve o panoya git
-          setBoards([...boards, newProject]);
-          setActiveBoardId(newProject.id);
+          const mappedProject = { ...newProject, name: newProject.projectName };
+          setBoards([...boards, mappedProject]);
+          setActiveBoardId(mappedProject.id);
         } else {
-          console.error("Hata Detayı:", await response.text());
           alert("Pano oluşturulamadı! Hata: " + response.status);
         }
       } catch (error) {
@@ -161,12 +189,68 @@ function App() {
     }
   };
 
-  // --- EKRAN AYARLARI (UI) ---
+  // --- 4. ÜYE EKLEME (DİREKT E-POSTA İLE) ---
+  const addMember = async (email) => {
+    if (!email.trim()) return;
+
+    try {
+      // Endpoint: POST /api/team/{teamId}/add-member-by-email
+      const response = await fetch(
+        `http://localhost:8080/api/team/${activeTeam.id}/add-member-by-email`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          // Backend'in { "email": "..." } formatında body beklediğini varsayıyoruz
+          body: JSON.stringify({ email: email }),
+        }
+      );
+
+      if (response.ok) {
+        alert("Üye başarıyla eklendi!");
+        fetchMembers(); // Listeyi güncelle
+        setNewMemberName("");
+      } else {
+        const errText = await response.text();
+        console.error("Üye ekleme hatası:", errText);
+        // Backend'den dönen hatayı veya genel durum kodunu göster
+        alert(`Üye eklenemedi. (${response.status})`);
+      }
+    } catch (err) {
+      console.error("Bağlantı hatası:", err);
+      alert("İşlem başarısız. Sunucuya ulaşılamadı.");
+    }
+  };
+
+  // --- 5. ÜYE SİLME ---
+  const removeMember = async (memberId) => {
+    if (window.confirm("Bu üyeyi takımdan çıkarmak istediğine emin misin?")) {
+      try {
+        const response = await fetch(
+          `http://localhost:8080/api/team/${activeTeam.id}/members/${memberId}`,
+          {
+            method: "DELETE",
+            headers: { Authorization: `Bearer ${token}` },
+          }
+        );
+
+        if (response.ok) {
+          setMembers(members.filter((m) => m.id !== memberId));
+        } else {
+          alert("Üye silinemedi.");
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    }
+  };
+
+  // --- UI ---
   useEffect(() => {
     if (!activeBoardId) return;
     localStorage.setItem(`pepello-last-board-${activeTeam?.id}`, activeBoardId);
-
-    // Arkaplanı localStorage'dan al
     const savedBg = localStorage.getItem(`pepello-bg-${activeBoardId}`);
     setBoardBackground(savedBg || BG_OPTIONS[0].value);
     setSearchString("");
@@ -179,12 +263,8 @@ function App() {
 
   useEffect(() => {
     const activeBoard = boards.find((b) => b.id === activeBoardId);
-    document.title = activeBoard
-      ? `${activeBoard.projectName || activeBoard.name} | Pepello`
-      : "Pepello";
+    document.title = activeBoard ? `${activeBoard.name} | Pepello` : "Pepello";
   }, [activeBoardId, boards]);
-
-  // --- YARDIMCI METODLAR ---
 
   const handleLogin = (username) => {
     setCurrentUser(username);
@@ -194,16 +274,13 @@ function App() {
   const handleLogout = () => {
     setCurrentUser(null);
     setActiveTeam(null);
-    // TÜM VERİLERİ TEMİZLE
     localStorage.removeItem("pepello-user");
     localStorage.removeItem("token");
-    localStorage.removeItem("userId"); // User ID'yi siliyoruz
+    localStorage.removeItem("userId");
     window.location.reload();
   };
 
-  const removeBoard = (boardId) => {
-    // SİLME İŞLEMİ (Şimdilik sadece Frontend'den siliyoruz)
-    // İleride: DELETE /api/project/{id}
+  const removeBoard = async (boardId) => {
     if (boards.length === 1) {
       alert("Takımda en az bir pano kalmalı!");
       return;
@@ -212,51 +289,25 @@ function App() {
       const newBoards = boards.filter((b) => b.id !== boardId);
       setBoards(newBoards);
       if (newBoards.length > 0) setActiveBoardId(newBoards[0].id);
+      else setActiveBoardId(null);
     }
   };
 
   const renameBoard = (boardId, newName) => {
-    // İsim güncelleme (Frontend)
     const newBoards = boards.map((b) =>
-      b.id === boardId ? { ...b, projectName: newName, name: newName } : b
+      b.id === boardId ? { ...b, name: newName, projectName: newName } : b
     );
     setBoards(newBoards);
   };
 
-  const addMember = (name) => {
-    const newMember = {
-      id: uuidv4(),
-      name: name,
-      initials: name
-        .split(" ")
-        .map((n) => n[0])
-        .join("")
-        .toUpperCase()
-        .substring(0, 2),
-      color: "#" + Math.floor(Math.random() * 16777215).toString(16),
-    };
-    setMembers([...members, newMember]);
-  };
-
-  const removeMember = (memberId) => {
-    if (window.confirm("Bu üyeyi silmek istediğine emin misin?")) {
-      setMembers(members.filter((m) => m.id !== memberId));
-    }
-  };
-
-  // --- RENDER ---
-
-  // 1. Giriş Kontrolü
   if (!currentUser) return <Auth onLogin={handleLogin} />;
 
-  // 2. Takım Seçimi (activeTeam yoksa)
   if (!activeTeam) {
     return (
       <TeamSelect onSelectTeam={setActiveTeam} currentUser={currentUser} />
     );
   }
 
-  // 3. Ana Uygulama
   const activeBoard = boards.find((b) => b.id === activeBoardId);
 
   const getBoardStyle = () => {
@@ -274,7 +325,6 @@ function App() {
 
   return (
     <div className="app-container">
-      {/* HEADER */}
       <header className="header-area">
         <div className="header-left">
           <button
@@ -306,9 +356,7 @@ function App() {
           {activeBoardId && (
             <input
               className="header-board-title"
-              value={
-                activeBoard ? activeBoard.projectName || activeBoard.name : ""
-              }
+              value={activeBoard ? activeBoard.name : ""}
               onChange={(e) => renameBoard(activeBoardId, e.target.value)}
               placeholder="Pano İsmi"
             />
@@ -424,7 +472,6 @@ function App() {
         </div>
       </header>
 
-      {/* MAIN CONTENT */}
       <div className="main-content">
         <Sidebar
           boards={boards}
@@ -435,6 +482,7 @@ function App() {
           onRenameBoard={renameBoard}
           onShowMembers={() => setIsMembersModalOpen(true)}
         />
+
         <main className="board-area" style={getBoardStyle()}>
           {loadingBoards ? (
             <div
@@ -468,14 +516,13 @@ function App() {
               }}
             >
               {boards.length === 0
-                ? "Bu takımda henüz proje yok. '+' butonuna basarak yeni pano oluştur."
+                ? "Bu takımda henüz pano yok. '+' butonuna basarak yeni bir pano oluştur."
                 : "Soldan bir pano seç."}
             </div>
           )}
         </main>
       </div>
 
-      {/* FOOTER */}
       <footer className="app-footer">
         <div className="footer-left">
           <span>Pepello &copy; 2025</span>
@@ -488,7 +535,6 @@ function App() {
         </div>
       </footer>
 
-      {/* ÜYE MODALI */}
       {isMembersModalOpen && (
         <div
           className="modal-overlay"
@@ -513,12 +559,11 @@ function App() {
                 <input
                   type="text"
                   className="members-input"
-                  placeholder="Yeni üye adı..."
+                  placeholder="Üye E-postası..."
                   value={newMemberName}
                   onChange={(e) => setNewMemberName(e.target.value)}
                   onKeyDown={(e) =>
-                    e.key === "Enter" &&
-                    addMember(newMemberName) & setNewMemberName("")
+                    e.key === "Enter" && addMember(newMemberName)
                   }
                   autoFocus
                 />
@@ -526,7 +571,6 @@ function App() {
                   className="members-add-btn"
                   onClick={() => {
                     addMember(newMemberName);
-                    setNewMemberName("");
                   }}
                 >
                   Ekle
@@ -542,7 +586,12 @@ function App() {
                       >
                         {m.initials}
                       </div>
-                      <span className="member-name">{m.name}</span>
+                      <span className="member-name">
+                        {m.name}{" "}
+                        <small style={{ color: "#999", marginLeft: 5 }}>
+                          ({m.email})
+                        </small>
+                      </span>
                     </div>
                     <button
                       className="member-delete-btn"

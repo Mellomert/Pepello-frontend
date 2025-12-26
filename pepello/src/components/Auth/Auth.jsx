@@ -96,7 +96,7 @@ const Auth = ({ onLogin }) => {
 
       // 1. Token'ı kaydet
       localStorage.setItem("token", data.token);
-
+      
       // 2. User ID'yi kaydet (Backend'den 'userId' adıyla dönüyor)
       if (data.userId) {
         localStorage.setItem("userId", data.userId);
