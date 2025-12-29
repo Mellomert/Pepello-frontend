@@ -158,6 +158,7 @@ function App() {
       try {
         const today = new Date().toISOString().split("T")[0];
         const bodyData = {
+          teamId: activeTeam.id,
           projectName: name,
           projectDescription: "Yeni oluşturulan proje",
           icon: null,
